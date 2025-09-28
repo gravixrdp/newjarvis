@@ -2,8 +2,15 @@ $(document).ready(function () {
   // Display Speak Message
   eel.expose(DisplayMessage);
   function DisplayMessage(message) {
-    $(".siri-message li:first").text(message);
-    $(".siri-message").textillate("start");
+    // Update the visible H1
+    $("#WishMessage").text(message);
+    // Also update any textillate targets if present
+    $(".siri-message").text(message);
+    try {
+      $(".siri-message").textillate("start");
+    } catch (e) {
+      // textillate may not be initialized yet; ignore
+    }
   }
 
   eel.expose(ShowHood);
