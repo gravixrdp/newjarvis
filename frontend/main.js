@@ -1,6 +1,10 @@
 $(document).ready(function () {
-
-  // Removed invalid eel.init() call; Eel is initialized in Python.
+  // Kick off Python-side initialization (hides loader and starts face auth flow)
+  try {
+    eel.init();
+  } catch (e) {
+    console.log("eel.init() not available yet:", e);
+  }
 
   $(".text").textillate({
     loop: true,
@@ -45,23 +49,23 @@ $(document).ready(function () {
     eel.play_assistant_sound();
     $("#Oval").attr("hidden", true);
     $("#SiriWave").attr("hidden", false);
-
-    eel.takeAllCommands()();
+    // Start voice capture/command handling
+    eel.takeAllCommands();
   });
 
   function doc_keyUp(e) {
-    // trigger on Win+J (metaKey + 'j')
+    // Attempt to trigger on Win+J (metaKey + 'j'); note some browsers won't capture the Windows key
     if (e.key === "j" && e.metaKey) {
       eel.play_assistant_sound();
       $("#Oval").attr("hidden", true);
       $("#SiriWave").attr("hidden", false);
-      eel.takeAllCommands()();
+      eel.takeAllCommands();
     }
   }
   document.addEventListener("keyup", doc_keyUp, false);
 
   function PlayAssistant(message) {
-    if (message != "") {
+    if (message && message.trim() !== "") {
       $("#Oval").attr("hidden", true);
       $("#SiriWave").attr("hidden", false);
       eel.takeAllCommands(message);
@@ -74,7 +78,7 @@ $(document).ready(function () {
   }
 
   function ShowHideButton(message) {
-    if (message.length == 0) {
+    if (!message || message.length === 0) {
       $("#MicBtn").attr("hidden", false);
       $("#SendBtn").attr("hidden", true);
     } else {
@@ -92,6 +96,15 @@ $(document).ready(function () {
     let message = $("#chatbox").val();
     PlayAssistant(message);
   });
+
+  $("#chatbox").keypress(function (e) {
+    const key = e.which;
+    if (key === 13) {
+      let message = $("#chatbox").val();
+      PlayAssistant(message);
+    }
+  });
+});
 
   $("#chatbox").keypress(function (e) {
     key = e.which;
