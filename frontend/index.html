@@ -442,6 +442,11 @@
             </div>
             <h4 class="text-light text-center">Ask me Anything</h4>
 
+            <!-- Chat message area expected by controller.js -->
+            <div class="col-md-12 mt-3">
+              <div id="chat-canvas-body" class="chat-canvas p-3" style="max-height: 300px; overflow-y: auto; border: 1px solid #00aaff; border-radius: 8px;"></div>
+            </div>
+
             <div class="col-md-12 mt-4 pt-4">
               <div class="text-center">
                 <div id="TextInput" class="d-flex">
@@ -460,6 +465,10 @@
                   </button>
                   <button id="SettingBtn" class="glow-on-hover">
                     <i class="bi bi-gear-wide-connected"></i>
+                  </button>
+                  <!-- Optional send button referenced in JS -->
+                  <button id="SendBtn" class="glow-on-hover" hidden>
+                    <i class="bi bi-send"></i>
                   </button>
                 </div>
               </div>

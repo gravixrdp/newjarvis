@@ -36,11 +36,16 @@ pygame.mixer.init()
 # Define the function to play sound
 @eel.expose
 def play_assistant_sound():
-    sound_file = r"C:\Users\patha\Videos\Jarvis\frontend\assets\audio\start_sound.mp3"
-    pygame.mixer.music.load(sound_file)
-    pygame.mixer.music.play()
-    
-    
+    # Resolve bundled audio file relative to project
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sound_file = os.path.join(base_dir, "frontend", "assets", "audio", "start_sound.mp3")
+    try:
+        pygame.mixer.music.load(sound_file)
+        pygame.mixer.music.play()
+    except Exception as e:
+        # Fallback: speak a small beep if audio missing
+        speak("Assistant started")
+
 def openCommand(query):
     query = query.replace(ASSISTANT_NAME,"")
     query = query.replace("open","")
@@ -184,10 +189,14 @@ def whatsApp(Phone, message, flag, name):
     pyautogui.hotkey('enter')
     speak(jarvis_message)
 
-
 def chatBot(query):
+    # Guard: ensure cookie exists to avoid runtime error
+    cookie_path = os.path.join("backend", "cookie.json")
+    if not os.path.exists(cookie_path):
+        speak("Chat is not configured. Please provide cookie.json or an API key.")
+        return "Chat not configured"
     user_input = query.lower()
-    chatbot = hugchat.ChatBot(cookie_path="backend\cookie.json")
+    chatbot = hugchat.ChatBot(cookie_path=cookie_path)
     id = chatbot.new_conversation()
     chatbot.change_conversation(id)
     response =  chatbot.chat(user_input)

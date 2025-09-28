@@ -1,4 +1,5 @@
 import os
+import sys
 import eel
 from backend.auth import recoganize
 from backend.auth.recoganize import AuthenticateFace
@@ -28,9 +29,12 @@ def start():
         else:
             speak("Face not recognized. Please try again")
         
-    os.system('start msedge.exe --app="http://127.0.0.1:8000/index.html"')
-    
-    
+    # Open app window in Edge only on Windows; otherwise rely on default browser
+    try:
+        if sys.platform.startswith("win"):
+            os.system('start msedge.exe --app="http://127.0.0.1:8000/index.html"')
+    except Exception:
+        pass
     
     eel.start("index.html", mode=None, host="localhost", block=True) 
 
