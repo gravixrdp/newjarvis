@@ -23,8 +23,9 @@ import pyaudio
 import pyautogui
 import pywhatkit as kit
 import pygame
+import requests
 from backend.command import speak
-from backend.config import ASSISTANT_NAME
+from backend.config import ASSISTANT_NAME, HF_API_TOKEN, HF_MODEL
 import sqlite3
 
 from backend.helper import extract_yt_term, remove_words
@@ -190,16 +191,59 @@ def whatsApp(Phone, message, flag, name):
     speak(jarvis_message)
 
 def chatBot(query):
-    # Guard: ensure cookie exists to avoid runtime error
-    cookie_path = os.path.join("backend", "cookie.json")
-    if not os.path.exists(cookie_path):
-        speak("Chat is not configured. Please provide cookie.json or an API key.")
-        return "Chat not configured"
     user_input = query.lower()
-    chatbot = hugchat.ChatBot(cookie_path=cookie_path)
-    id = chatbot.new_conversation()
-    chatbot.change_conversation(id)
-    response =  chatbot.chat(user_input)
-    print(response)
-    speak(response)
-    return response
+
+    # Prefer HF Inference API if token is provided
+    if HF_API_TOKEN:
+        try:
+            url = f"https://api-inference.huggingface.co/models/{HF_MODEL}"
+            headers = {"Authorization": f"Bearer {HF_API_TOKEN}"}
+            payload = {
+                "inputs": user_input,
+                "parameters": {
+                    "max_new_tokens": 128,
+                    "temperature": 0.7,
+                    "return_full_text": False
+                }
+            }
+            res = requests.post(url, headers=headers, json=payload, timeout=60)
+            res.raise_for_status()
+            data = res.json()
+            # Handle common response formats
+            if isinstance(data, list) and len(data) > 0:
+                # text-generation pipeline often returns [{"generated_text": "..."}]
+                if "generated_text" in data[0]:
+                    response_text = data[0]["generated_text"]
+                else:
+                    # Some models return list of dicts with 'generated_text' or content in variations
+                    response_text = str(data[0])
+            elif isinstance(data, dict) and "generated_text" in data:
+                response_text = data["generated_text"]
+            else:
+                response_text = str(data)
+            print(response_text)
+            speak(response_text)
+            return response_text
+        except Exception as e:
+            print(f"HF API error: {e}")
+            speak("Chat service is temporarily unavailable.")
+            return "Chat service unavailable"
+
+    # Fallback to hugchat cookie-based if configured
+    cookie_path = os.path.join("backend", "cookie.json")
+    if os.path.exists(cookie_path):
+        try:
+            chatbot = hugchat.ChatBot(cookie_path=cookie_path)
+            id = chatbot.new_conversation()
+            chatbot.change_conversation(id)
+            response = chatbot.chat(user_input)
+            print(response)
+            speak(response)
+            return response
+        except Exception as e:
+            print(f"hugchat error: {e}")
+            speak("Chat service is temporarily unavailable.")
+            return "Chat service unavailable"
+
+    speak("Chat is not configured. Please provide an API token or cookie.")
+    return "Chat not configured"
