@@ -60,9 +60,18 @@ def takecommand():
             eel.DisplayMessage("I'm listening...")
         except Exception:
             pass
-        r.pause_threshold = 1
-        r.adjust_for_ambient_noise(source)
-        audio = r.listen(source, 10, 8)
+        # Tune thresholds
+        r.pause_threshold = 0.8
+        r.energy_threshold = 300
+        r.dynamic_energy_threshold = True
+        r.adjust_for_ambient_noise(source, duration=0.6)
+        try:
+            # timeout: max wait for speech to start; phrase_time_limit: max length to capture
+            audio = r.listen(source, timeout=8, phrase_time_limit=8)
+        except sr.WaitTimeoutError:
+            print("Timeout: no speech detected.")
+            speak("I didn't hear anything.")
+            return None
 
     try:
         print("Recognizing...")
@@ -77,6 +86,14 @@ def takecommand():
         except Exception:
             pass
         speak(query)
+    except sr.UnknownValueError:
+        print("Speech unintelligible.")
+        speak("Sorry, I could not understand.")
+        return None
+    except sr.RequestError as e:
+        print(f"Speech API error: {e}")
+        speak("Speech recognition service unavailable.")
+        return None
     except Exception as e:
         print(f"Error: {str(e)}\n")
         return None
