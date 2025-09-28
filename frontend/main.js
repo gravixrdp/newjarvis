@@ -1,6 +1,7 @@
 $(document).ready(function () {
 
-  eel.init()()
+  // Removed invalid eel.init() call; Eel is initialized in Python.
+
   $(".text").textillate({
     loop: true,
     speed: 1500,
@@ -49,8 +50,7 @@ $(document).ready(function () {
   });
 
   function doc_keyUp(e) {
-    // this would test for whichever key is 40 (down arrow) and the ctrl key at the same time
-
+    // trigger on Win+J (metaKey + 'j')
     if (e.key === "j" && e.metaKey) {
       eel.play_assistant_sound();
       $("#Oval").attr("hidden", true);
@@ -69,7 +69,7 @@ $(document).ready(function () {
       $("#MicBtn").attr("hidden", false);
       $("#SendBtn").attr("hidden", true);
     } else {
-      console.log("Empty message, nothing sent."); // Log if the message is empty
+      console.log("Empty message, nothing sent.");
     }
   }
 
@@ -85,7 +85,6 @@ $(document).ready(function () {
 
   $("#chatbox").keyup(function () {
     let message = $("#chatbox").val();
-    console.log("Current chatbox input: ", message); // Log input value for debugging
     ShowHideButton(message);
   });
 
@@ -101,4 +100,5 @@ $(document).ready(function () {
       PlayAssistant(message);
     }
   });
+});
 });

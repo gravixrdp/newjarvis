@@ -17,12 +17,9 @@ def AuthenticateFace():
 
     font = cv2.FONT_HERSHEY_SIMPLEX  # denotes the font type
 
-
-    id = 2  # number of persons you want to Recognize
-
-
-    names = ['','', 'Ankit']  # names, leave first empty bcz counter starts from 0
-
+    # Mapping of IDs to names (index starts at 0; keep empty for 0 if unused)
+    # Extend this list or leave blank entries; we will fallback to "User {id}" if not present.
+    names = ['', '', 'Ankit']  # example entries; add your own IDs via training
 
     cam = cv2.VideoCapture(0, cv2.CAP_DSHOW)  # cv2.CAP_DSHOW to remove warning
     cam.set(3, 640)  # set video FrameWidht
@@ -31,8 +28,6 @@ def AuthenticateFace():
     # Define min window size to be recognized as a face
     minW = 0.1*cam.get(3)
     minH = 0.1*cam.get(4)
-
-    # flag = True
 
     while True:
 
@@ -54,20 +49,24 @@ def AuthenticateFace():
             cv2.rectangle(img, (x, y), (x+w, y+h), (0, 255, 0), 2)
 
             # to predict on every single image
-            id, accuracy = recognizer.predict(converted_image[y:y+h, x:x+w])
+            pred_id, accuracy = recognizer.predict(converted_image[y:y+h, x:x+w])
 
             # Check if accuracy is less them 100 ==> "0" is perfect match
             if (accuracy < 100):
-                id = names[id]
-                accuracy = "  {0}%".format(round(100 - accuracy))
+                # Use mapped name if available, else fallback to "User {id}"
+                if pred_id < len(names) and names[pred_id]:
+                    label = names[pred_id]
+                else:
+                    label = f"User {pred_id}"
+                acc_str = "  {0}%".format(round(100 - accuracy))
                 flag = 1
             else:
-                id = "unknown"
-                accuracy = "  {0}%".format(round(100 - accuracy))
+                label = "unknown"
+                acc_str = "  {0}%".format(round(100 - accuracy))
                 flag = 0
 
-            cv2.putText(img, str(id), (x+5, y-5), font, 1, (255, 255, 255), 2)
-            cv2.putText(img, str(accuracy), (x+5, y+h-5),
+            cv2.putText(img, str(label), (x+5, y-5), font, 1, (255, 255, 255), 2)
+            cv2.putText(img, str(acc_str), (x+5, y+h-5),
                         font, 1, (255, 255, 0), 1)
 
         cv2.imshow('camera', img)
