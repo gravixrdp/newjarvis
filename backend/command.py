@@ -51,11 +51,30 @@ def speak(text):
     except Exception:
         pass
 
+def _score_device(name: str) -> int:
+    nm = (name or "").lower()
+    score = 0
+    # positives
+    if "microphone" in nm or "mic" in nm:
+        score += 5
+    if "realtek" in nm:
+        score += 3
+    if "digital" in nm or "array" in nm or "input" in nm:
+        score += 2
+    if "hands-free" in nm or "headset" in nm:
+        score += 1  # may still be valid if it's the only input
+    # negatives
+    bad_words = ["virtual", "stereo mix", "mapper", "primary", "speakers", "output", "driver", "line out", "headphones"]
+    for w in bad_words:
+        if w in nm:
+            score -= 6
+    return score
+
 def _pick_microphone():
     """
     Choose a microphone device index:
       - Use MIC_DEVICE_INDEX if set
-      - Else try to find a device containing 'microphone'
+      - Else score devices and pick the best input device
       - Else None (default device)
     """
     try:
@@ -64,13 +83,19 @@ def _pick_microphone():
         for i, name in enumerate(devices):
             print(f"  [{i}] {name}")
         if MIC_DEVICE_INDEX is not None:
+            print(f"Using MIC_DEVICE_INDEX={MIC_DEVICE_INDEX}")
             return MIC_DEVICE_INDEX
+        best_idx = None
+        best_score = -999
         for i, name in enumerate(devices):
-            nm = (name or "").lower()
-            if "microphone" in nm or "mic" in nm:
-                return i
-    except Exception:
-        pass
+            s = _score_device(name)
+            if s > best_score:
+                best_score = s
+                best_idx = i
+        print(f"Auto-selected mic index: {best_idx} (score={best_score})")
+        return best_idx
+    except Exception as e:
+        print(f"Could not enumerate microphones: {e}")
     return None
 
 # Expose the Python function to JavaScript
@@ -94,21 +119,25 @@ def takecommand():
                 pass
             # Tune thresholds
             r.pause_threshold = 0.8
-            r.energy_threshold = 300
+            r.energy_threshold = 100  # lower threshold to detect quieter speech
             r.dynamic_energy_threshold = True
             try:
-                r.adjust_for_ambient_noise(src, duration=0.6)
+                r.adjust_for_ambient_noise(src, duration=1.0)
             except AssertionError as e:
                 print(f"Ambient noise adjust failed: {e}")
-                speak("Microphone is busy. Disable hotword or choose another mic device.")
+                speak("Microphone is busy. Try selecting another mic in Windows settings.")
                 return None
             try:
                 # timeout: max wait for speech to start; phrase_time_limit: max length to capture
-                audio = r.listen(src, timeout=8, phrase_time_limit=8)
+                audio = r.listen(src, timeout=12, phrase_time_limit=10)
             except sr.WaitTimeoutError:
                 print("Timeout: no speech detected.")
                 speak("I didn't hear anything.")
                 return None
+    except AttributeError as e:
+        print(f"Microphone context failed (attribute): {e}")
+        speak("Microphone not available.")
+        return None
     except Exception as e:
         print(f"Microphone context failed: {e}")
         speak("Microphone not available.")
