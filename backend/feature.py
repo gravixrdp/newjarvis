@@ -22,7 +22,6 @@ import pvporcupine
 import pyaudio
 import pyautogui
 import pywhatkit as kit
-import pygame
 import requests
 from backend.command import speak
 from backend.config import ASSISTANT_NAME, HF_API_TOKEN, HF_MODEL
@@ -31,8 +30,6 @@ import sqlite3
 from backend.helper import extract_yt_term, remove_words
 conn = sqlite3.connect("jarvis.db")
 cursor = conn.cursor()
-# Initialize pygame mixer
-pygame.mixer.init()
 
 def _resolve_hf_token_and_model():
     """
@@ -43,18 +40,10 @@ def _resolve_hf_token_and_model():
     model = HF_MODEL or os.getenv("HF_MODEL", "meta-llama/Llama-3.1-8B-Instruct")
     return token, model
 
-# Define the function to play sound
+# Define the function to play sound (disabled in text-only mode)
 @eel.expose
 def play_assistant_sound():
-    # Resolve bundled audio file relative to project
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    sound_file = os.path.join(base_dir, "frontend", "assets", "audio", "start_sound.mp3")
-    try:
-        pygame.mixer.music.load(sound_file)
-        pygame.mixer.music.play()
-    except Exception as e:
-        # Fallback: speak a small beep if audio missing
-        speak("Assistant started")
+    return None
 
 def openCommand(query):
     query = query.replace(ASSISTANT_NAME,"")
