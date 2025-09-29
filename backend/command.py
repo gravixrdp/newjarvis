@@ -70,77 +70,87 @@ def _score_device(name: str) -> int:
             score -= 6
     return score
 
-def _pick_microphone():
-    """
-    Choose a microphone device index:
-      - Use MIC_DEVICE_INDEX if set
-      - Else score devices and pick the best input device
-      - Else None (default device)
-    """
+def _candidate_mics():
     try:
         devices = sr.Microphone.list_microphone_names()
-        print("Available microphones:")
-        for i, name in enumerate(devices):
-            print(f"  [{i}] {name}")
-        if MIC_DEVICE_INDEX is not None:
-            print(f"Using MIC_DEVICE_INDEX={MIC_DEVICE_INDEX}")
-            return MIC_DEVICE_INDEX
-        best_idx = None
-        best_score = -999
-        for i, name in enumerate(devices):
-            s = _score_device(name)
-            if s > best_score:
-                best_score = s
-                best_idx = i
-        print(f"Auto-selected mic index: {best_idx} (score={best_score})")
-        return best_idx
+    except Exception:
+        devices = []
+    scored = [(i, name, _score_device(name)) for i, name in enumerate(devices)]
+    # Prefer explicit env index first, then highest scores
+    order = []
+    if MIC_DEVICE_INDEX is not None:
+        order.append(MIC_DEVICE_INDEX)
+    order += [i for i, _, _ in sorted(scored, key=lambda x: x[2], reverse=True)]
+    # Keep unique order
+    seen = set()
+    final = []
+    for i in order:
+        if i not in seen:
+            seen.add(i)
+            final.append(i)
+    return final, devices
+
+def _open_microphone():
+    candidates, devices = _candidate_mics()
+    print("Available microphones:")
+    for i, name in enumerate(devices):
+        print(f"  [{i}] {name}")
+    for idx in candidates[:8]:  # Try top 8 candidates max
+        try:
+            print(f"Trying mic index: {idx}")
+            return sr.Microphone(device_index=idx), idx
+        except Exception as e:
+            print(f"  Mic index {idx} failed: {e}")
+            continue
+    # Fallback: default device
+    try:
+        print("Trying default microphone")
+        return sr.Microphone(), None
     except Exception as e:
-        print(f"Could not enumerate microphones: {e}")
-    return None
+        print(f"  Default mic failed: {e}")
+        return None, None
 
 # Expose the Python function to JavaScript
 
 def takecommand():
     r = sr.Recognizer()
-    mic_index = _pick_microphone()
-    try:
-        source = sr.Microphone(device_index=mic_index)
-    except Exception as e:
-        print(f"Could not open microphone (index={mic_index}): {e}")
-        speak("Microphone not available.")
+    source, used_idx = _open_microphone()
+    if source is None:
+        # Do not speak error; just log and exit quietly as requested
+        print("No working microphone found.")
         return None
 
     try:
         with source as src:
             print("I'm listening...")
+            if used_idx is not None:
+                print(f"Using microphone index: {used_idx}")
             try:
                 eel.DisplayMessage("I'm listening...")
             except Exception:
                 pass
             # Tune thresholds
             r.pause_threshold = 0.8
-            r.energy_threshold = 100  # lower threshold to detect quieter speech
+            r.energy_threshold = 80  # lower threshold to detect quieter speech
             r.dynamic_energy_threshold = True
             try:
-                r.adjust_for_ambient_noise(src, duration=1.0)
+                r.adjust_for_ambient_noise(src, duration=1.2)
             except AssertionError as e:
                 print(f"Ambient noise adjust failed: {e}")
-                speak("Microphone is busy. Try selecting another mic in Windows settings.")
+                # Silent fail per user request
                 return None
             try:
                 # timeout: max wait for speech to start; phrase_time_limit: max length to capture
                 audio = r.listen(src, timeout=12, phrase_time_limit=10)
             except sr.WaitTimeoutError:
                 print("Timeout: no speech detected.")
-                speak("I didn't hear anything.")
+                # Silent per request
                 return None
     except AttributeError as e:
         print(f"Microphone context failed (attribute): {e}")
-        speak("Microphone not available.")
         return None
     except Exception as e:
         print(f"Microphone context failed: {e}")
-        speak("Microphone not available.")
         return None
 
     try:
@@ -158,11 +168,9 @@ def takecommand():
         speak(query)
     except sr.UnknownValueError:
         print("Speech unintelligible.")
-        speak("Sorry, I could not understand.")
         return None
     except sr.RequestError as e:
         print(f"Speech API error: {e}")
-        speak("Speech recognition service unavailable.")
         return None
     except Exception as e:
         print(f"Error: {str(e)}\n")
