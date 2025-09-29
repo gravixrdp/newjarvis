@@ -5,8 +5,8 @@ ASSISTANT_NAME = "jarvis"
 
 def _load_env_fallback():
     """
-    Lightweight .env loader to help Windows/PowerShell cases where users ran `set`
-    which doesn't populate process env for Python. We try these locations:
+    Lightweight .env loader for Windows/PowerShell cases.
+    Tries:
       - ./envJarvis/.env
       - ./.env
       - ./envJarvis/HF_API_TOKEN.txt (token only)
@@ -39,5 +39,14 @@ def _load_env_fallback():
 _load_env_fallback()
 
 # Hugging Face Inference API configuration
-HF_API_TOKEN = os.getenv("HF_API_TOKEN")  # set environment variable or use .env/txt fallback
+HF_API_TOKEN = os.getenv("HF_API_TOKEN")  # set env, or provide via .env/txt fallback
 HF_MODEL = os.getenv("HF_MODEL", "meta-llama/Meta-Llama-3.1-8B-Instruct")
+
+# Optional mic device index for SpeechRecognition (see sr.Microphone.list_microphone_names())
+MIC_DEVICE_INDEX = None
+try:
+    _idx = os.getenv("MIC_DEVICE_INDEX")
+    if _idx is not None and _idx != "":
+        MIC_DEVICE_INDEX = int(_idx)
+except Exception:
+    MIC_DEVICE_INDEX = None

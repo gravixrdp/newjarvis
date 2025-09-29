@@ -34,6 +34,15 @@ cursor = conn.cursor()
 # Initialize pygame mixer
 pygame.mixer.init()
 
+def _resolve_hf_token_and_model():
+    """
+    Prefer values from config import; if missing, re-check current env to allow
+    setting token via PowerShell $env:... just before run.
+    """
+    token = HF_API_TOKEN or os.getenv("HF_API_TOKEN")
+    model = HF_MODEL or os.getenv("HF_MODEL", "meta-llama/Meta-Llama-3.1-8B-Instruct")
+    return token, model
+
 # Define the function to play sound
 @eel.expose
 def play_assistant_sound():
@@ -193,11 +202,12 @@ def whatsApp(Phone, message, flag, name):
 def chatBot(query):
     user_input = query.lower()
 
-    # Prefer HF Inference API if token is provided
-    if HF_API_TOKEN:
+    # Resolve token/model dynamically to reflect latest env
+    token, model = _resolve_hf_token_and_model()
+    if token:
         try:
-            url = f"https://api-inference.huggingface.co/models/{HF_MODEL}"
-            headers = {"Authorization": f"Bearer {HF_API_TOKEN}"}
+            url = f"https://api-inference.huggingface.co/models/{model}"
+            headers = {"Authorization": f"Bearer {token}"}
             payload = {
                 "inputs": user_input,
                 "parameters": {
@@ -206,16 +216,26 @@ def chatBot(query):
                     "return_full_text": False
                 }
             }
+            print(f"Calling HF Inference: model={model}")
             res = requests.post(url, headers=headers, json=payload, timeout=60)
+            # Detailed error handling
+            if res.status_code == 401:
+                speak("Invalid Hugging Face token.")
+                return "Invalid token"
+            if res.status_code == 403:
+                speak("Access denied to the model. Accept model terms on Hugging Face website.")
+                return "Model access denied"
+            if res.status_code == 503:
+                speak("Model is loading, please wait a moment and try again.")
+                return "Model loading"
             res.raise_for_status()
+
             data = res.json()
             # Handle common response formats
             if isinstance(data, list) and len(data) > 0:
-                # text-generation pipeline often returns [{"generated_text": "..."}]
-                if "generated_text" in data[0]:
+                if isinstance(data[0], dict) and "generated_text" in data[0]:
                     response_text = data[0]["generated_text"]
                 else:
-                    # Some models return list of dicts with 'generated_text' or content in variations
                     response_text = str(data[0])
             elif isinstance(data, dict) and "generated_text" in data:
                 response_text = data["generated_text"]

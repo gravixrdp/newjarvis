@@ -2,6 +2,7 @@ import time
 import pyttsx3
 import speech_recognition as sr
 import eel
+from backend.config import MIC_DEVICE_INDEX
 
 # Initialize TTS engine once and choose a safe voice index
 _engine = None
@@ -50,11 +51,41 @@ def speak(text):
     except Exception:
         pass
 
+def _pick_microphone():
+    """
+    Choose a microphone device index:
+      - Use MIC_DEVICE_INDEX if set
+      - Else try to find a device containing 'microphone'
+      - Else None (default device)
+    """
+    try:
+        devices = sr.Microphone.list_microphone_names()
+        print("Available microphones:")
+        for i, name in enumerate(devices):
+            print(f"  [{i}] {name}")
+        if MIC_DEVICE_INDEX is not None:
+            return MIC_DEVICE_INDEX
+        for i, name in enumerate(devices):
+            nm = (name or "").lower()
+            if "microphone" in nm or "mic" in nm:
+                return i
+    except Exception:
+        pass
+    return None
+
 # Expose the Python function to JavaScript
 
 def takecommand():
     r = sr.Recognizer()
-    with sr.Microphone() as source:
+    mic_index = _pick_microphone()
+    try:
+        source = sr.Microphone(device_index=mic_index)
+    except Exception as e:
+        print(f"Could not open microphone (index={mic_index}): {e}")
+        speak("Microphone not available.")
+        return None
+
+    with source as src:
         print("I'm listening...")
         try:
             eel.DisplayMessage("I'm listening...")
@@ -64,10 +95,10 @@ def takecommand():
         r.pause_threshold = 0.8
         r.energy_threshold = 300
         r.dynamic_energy_threshold = True
-        r.adjust_for_ambient_noise(source, duration=0.6)
+        r.adjust_for_ambient_noise(src, duration=0.6)
         try:
             # timeout: max wait for speech to start; phrase_time_limit: max length to capture
-            audio = r.listen(source, timeout=8, phrase_time_limit=8)
+            audio = r.listen(src, timeout=8, phrase_time_limit=8)
         except sr.WaitTimeoutError:
             print("Timeout: no speech detected.")
             speak("I didn't hear anything.")
