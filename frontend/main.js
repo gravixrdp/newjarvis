@@ -1,84 +1,168 @@
 $(document).ready(function () {
-
-  // Removed invalid eel.init() call; Eel is initialized in Python.
+  // Initialize Python-side (face auth flow)
+  try {
+    eel.init();
+  } catch (e) {
+    console.log("eel.init() not available yet:", e);
+  }
 
   $(".text").textillate({
     loop: true,
     speed: 1500,
     sync: true,
-    in: {
-      effect: "bounceIn",
-    },
-    out: {
-      effect: "bounceOut",
-    },
+    in: { effect: "bounceIn" },
+    out: { effect: "bounceOut" },
   });
 
   $(".siri-message").textillate({
     loop: true,
     sync: true,
-    in: {
-      effect: "fadeInUp",
-      sync: true,
-    },
-    out: {
-      effect: "fadeOutUp",
-      sync: true,
-    },
+    in: { effect: "fadeInUp", sync: true },
+    out: { effect: "fadeOutUp", sync: true },
   });
 
-  var siriWave = new SiriWave({
-    container: document.getElementById("siri-container"),
-    width: 940,
-    style: "ios9",
-    amplitude: "1",
-    speed: "0.30",
-    height: 200,
-    autostart: true,
-    waveColor: "#ff0000",
-    waveOffset: 0,
-    rippleEffect: true,
-    rippleColor: "#ffffff",
-  });
+  // Browser SpeechRecognition (no Python mic)
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+  let recognition = null;
+  let listening = false;
+  let continuousMode = JSON.parse(localStorage.getItem("continuousMode") || "true");
+  let pendingListen = false;
 
-  $("#MicBtn").click(function () {
-    eel.play_assistant_sound();
-    $("#Oval").attr("hidden", true);
-    $("#SiriWave").attr("hidden", false);
-
-    eel.takeAllCommands()();
-  });
-
-  function doc_keyUp(e) {
-    // trigger on Win+J (metaKey + 'j')
-    if (e.key === "j" && e.metaKey) {
-      eel.play_assistant_sound();
+  function setStatus(listeningNow) {
+    if (listeningNow) {
       $("#Oval").attr("hidden", true);
       $("#SiriWave").attr("hidden", false);
-      eel.takeAllCommands()();
+    } else {
+      $("#SiriWave").attr("hidden", true);
+      $("#Oval").attr("hidden", false);
     }
   }
-  document.addEventListener("keyup", doc_keyUp, false);
+
+  function playBeep(type) {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.connect(g);
+      g.connect(ctx.destination);
+      o.type = "sine";
+      o.frequency.setValueAtTime(type === "start" ? 1000 : 600, ctx.currentTime);
+      g.gain.setValueAtTime(0.0001, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.1, ctx.currentTime + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.15);
+      o.start();
+      o.stop(ctx.currentTime + 0.16);
+      setTimeout(() => ctx.close(), 250);
+    } catch (e) {}
+  }
+
+  function createRecognizer() {
+    if (!SR) return null;
+    const rec = new SR();
+    rec.lang = "en-US";
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+
+    rec.onstart = function () {
+      listening = true;
+      setStatus(true);
+    };
+    rec.onerror = function (e) {
+      console.log("SpeechRecognition error:", e.error);
+      listening = false;
+      setStatus(false);
+      if (continuousMode && !window.assistantSpeaking) {
+        setTimeout(() => startListening(), 700);
+      } else {
+        pendingListen = true;
+      }
+    };
+    rec.onend = function () {
+      listening = false;
+      setStatus(false);
+      if (continuousMode && !window.assistantSpeaking) {
+        setTimeout(() => startListening(), 350);
+      } else {
+        pendingListen = true;
+      }
+    };
+    rec.onresult = function (event) {
+      const transcript = event.results[0][0].transcript;
+      if (transcript && transcript.trim() !== "") {
+        $("#chatbox").val("");
+        eel.senderText(transcript);
+        eel.takeAllCommands(transcript);
+      }
+    };
+    return rec;
+  }
+
+  function startListening() {
+    if (!SR) {
+      console.log("SpeechRecognition not supported in this browser.");
+      return;
+    }
+    if (listening) return;
+    recognition && recognition.abort && recognition.abort();
+    recognition = createRecognizer();
+    if (!recognition) return;
+    try {
+      playBeep("start");
+      recognition.start();
+    } catch (e) {
+      console.log("SpeechRecognition start error:", e);
+    }
+  }
+
+  function stopListening() {
+    try {
+      recognition && recognition.stop && recognition.stop();
+      playBeep("stop");
+    } catch (e) {}
+  }
+
+  // Called by controller.js when TTS finishes
+  window.onAssistantTTSComplete = function () {
+    if (continuousMode) {
+      setTimeout(() => {
+        if (!listening) startListening();
+        pendingListen = false;
+      }, 200);
+    }
+  };
+
+  // Mic button toggles listening
+  $("#MicBtn").show().on("click", function () {
+    if (listening) {
+      stopListening();
+    } else {
+      startListening();
+    }
+  });
+
+  // Settings: toggle hands-free continuous mode
+  $("#SettingBtn").on("click", function () {
+    continuousMode = !continuousMode;
+    localStorage.setItem("continuousMode", JSON.stringify(continuousMode));
+    const msg = continuousMode ? "Hands-free mode ON" : "Hands-free mode OFF";
+    try { eel.DisplayMessage(msg); } catch (e) {}
+  });
 
   function PlayAssistant(message) {
-    if (message != "") {
-      $("#Oval").attr("hidden", true);
-      $("#SiriWave").attr("hidden", false);
+    if (message && message.trim() !== "") {
       eel.takeAllCommands(message);
       $("#chatbox").val("");
-      $("#MicBtn").attr("hidden", false);
       $("#SendBtn").attr("hidden", true);
+      if (continuousMode && !listening) startListening();
     } else {
       console.log("Empty message, nothing sent.");
     }
   }
 
   function ShowHideButton(message) {
-    if (message.length == 0) {
-      $("#MicBtn").attr("hidden", false);
+    if (!message || message.length === 0) {
       $("#SendBtn").attr("hidden", true);
     } else {
-      $("#MicBtn").attr("hidden", true);
       $("#SendBtn").attr("hidden", false);
     }
   }
@@ -94,11 +178,10 @@ $(document).ready(function () {
   });
 
   $("#chatbox").keypress(function (e) {
-    key = e.which;
-    if (key == 13) {
+    const key = e.which || e.keyCode;
+    if (key === 13) {
       let message = $("#chatbox").val();
       PlayAssistant(message);
     }
   });
-});
 });
