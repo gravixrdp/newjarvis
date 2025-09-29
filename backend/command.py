@@ -85,24 +85,34 @@ def takecommand():
         speak("Microphone not available.")
         return None
 
-    with source as src:
-        print("I'm listening...")
-        try:
-            eel.DisplayMessage("I'm listening...")
-        except Exception:
-            pass
-        # Tune thresholds
-        r.pause_threshold = 0.8
-        r.energy_threshold = 300
-        r.dynamic_energy_threshold = True
-        r.adjust_for_ambient_noise(src, duration=0.6)
-        try:
-            # timeout: max wait for speech to start; phrase_time_limit: max length to capture
-            audio = r.listen(src, timeout=8, phrase_time_limit=8)
-        except sr.WaitTimeoutError:
-            print("Timeout: no speech detected.")
-            speak("I didn't hear anything.")
-            return None
+    try:
+        with source as src:
+            print("I'm listening...")
+            try:
+                eel.DisplayMessage("I'm listening...")
+            except Exception:
+                pass
+            # Tune thresholds
+            r.pause_threshold = 0.8
+            r.energy_threshold = 300
+            r.dynamic_energy_threshold = True
+            try:
+                r.adjust_for_ambient_noise(src, duration=0.6)
+            except AssertionError as e:
+                print(f"Ambient noise adjust failed: {e}")
+                speak("Microphone is busy. Disable hotword or choose another mic device.")
+                return None
+            try:
+                # timeout: max wait for speech to start; phrase_time_limit: max length to capture
+                audio = r.listen(src, timeout=8, phrase_time_limit=8)
+            except sr.WaitTimeoutError:
+                print("Timeout: no speech detected.")
+                speak("I didn't hear anything.")
+                return None
+    except Exception as e:
+        print(f"Microphone context failed: {e}")
+        speak("Microphone not available.")
+        return None
 
     try:
         print("Recognizing...")
