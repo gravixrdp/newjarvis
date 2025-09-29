@@ -1,11 +1,56 @@
 $(document).ready(function () {
-  // simple browser TTS
+  // Browser TTS with best-voice selection and callback
+  let cachedVoices = [];
+  let preferredVoices = [
+    "Google UK English Female",
+    "Microsoft Zira",
+    "Microsoft Sonia Online",
+    "Microsoft Aria Online",
+    "en-US",
+    "en-GB",
+  ];
+
+  function refreshVoices() {
+    try {
+      cachedVoices = window.speechSynthesis ? speechSynthesis.getVoices() || [] : [];
+    } catch (e) {
+      cachedVoices = [];
+    }
+  }
+  refreshVoices();
+  if (window.speechSynthesis) {
+    window.speechSynthesis.onvoiceschanged = refreshVoices;
+  }
+
+  function pickBestVoice() {
+    if (!cachedVoices || cachedVoices.length === 0) return null;
+    // Try exact matches first
+    for (const name of preferredVoices) {
+      const v = cachedVoices.find((vv) => (vv.name || "").toLowerCase().includes(name.toLowerCase()));
+      if (v) return v;
+    }
+    // Fallback: first English voice
+    const en = cachedVoices.find((v) => (v.lang || "").toLowerCase().startsWith("en"));
+    if (en) return en;
+    return cachedVoices[0];
+  }
+
   function speakText(message) {
     try {
       if (!message || !window.speechSynthesis) return;
       const utter = new SpeechSynthesisUtterance(message);
-      utter.rate = 1.0;
+      const v = pickBestVoice();
+      if (v) utter.voice = v;
+      utter.rate = 0.98;
       utter.pitch = 1.0;
+      window.assistantSpeaking = true;
+      utter.onend = function () {
+        window.assistantSpeaking = false;
+        if (typeof window.onAssistantTTSComplete === "function") {
+          window.onAssistantTTSComplete();
+        }
+      };
+      // Cancel any ongoing speech then speak
       speechSynthesis.cancel();
       speechSynthesis.speak(utter);
     } catch (e) {}
