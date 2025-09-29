@@ -40,7 +40,7 @@ def _resolve_hf_token_and_model():
     setting token via PowerShell $env:... just before run.
     """
     token = HF_API_TOKEN or os.getenv("HF_API_TOKEN")
-    model = HF_MODEL or os.getenv("HF_MODEL", "meta-llama/Meta-Llama-3.1-8B-Instruct")
+    model = HF_MODEL or os.getenv("HF_MODEL", "meta-llama/Llama-3.1-8B-Instruct")
     return token, model
 
 # Define the function to play sound
@@ -202,7 +202,45 @@ def whatsApp(Phone, message, flag, name):
 def chatBot(query):
     user_input = query.lower()
 
-    # Resolve token/model dynamically to reflect latest env
+    # Prefer OpenRouter if configured
+    from backend.config import OPENROUTER_API_KEY, OPENROUTER_MODEL
+    or_key = os.getenv("OPENROUTER_API_KEY", OPENROUTER_API_KEY or "")
+    or_model = os.getenv("OPENROUTER_MODEL", OPENROUTER_MODEL or "meta-llama/llama-3.3-8b-instruct:free")
+    if or_key:
+        try:
+            url = "https://openrouter.ai/api/v1/chat/completions"
+            headers = {
+                "Authorization": f"Bearer {or_key}",
+                "Content-Type": "application/json",
+                "HTTP-Referer": "http://localhost",
+                "X-Title": "Jarvis",
+            }
+            payload = {
+                "model": or_model,
+                "messages": [
+                    {"role": "system", "content": "You are Jarvis, a helpful voice assistant."},
+                    {"role": "user", "content": user_input},
+                ],
+                "max_tokens": 256,
+                "temperature": 0.7,
+            }
+            print(f"Calling OpenRouter: model={or_model}")
+            res = requests.post(url, headers=headers, json=payload, timeout=60)
+            if res.status_code == 401:
+                speak("OpenRouter API key invalid.")
+                return "Invalid OpenRouter key"
+            res.raise_for_status()
+            data = res.json()
+            content = data["choices"][0]["message"]["content"]
+            print(content)
+            speak(content)
+            return content
+        except Exception as e:
+            print(f"OpenRouter error: {e}")
+            speak("Chat service is temporarily unavailable.")
+            return "Chat service unavailable"
+
+    # Else try HF Inference API
     token, model = _resolve_hf_token_and_model()
     if token:
         try:

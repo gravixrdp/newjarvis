@@ -43,6 +43,10 @@ HF_API_TOKEN = os.getenv("HF_API_TOKEN")  # set env, or provide via .env/txt fal
 # Correct public model id (accept terms on HF first): meta-llama/Llama-3.1-8B-Instruct
 HF_MODEL = os.getenv("HF_MODEL", "meta-llama/Llama-3.1-8B-Instruct")
 
+# OpenRouter configuration (preferred if API key provided)
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")  # sk-or-...
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "meta-llama/llama-3.3-8b-instruct:free")
+
 # Optional mic device index for SpeechRecognition (see sr.Microphone.list_microphone_names())
 MIC_DEVICE_INDEX = None
 try:
