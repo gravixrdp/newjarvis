@@ -1,4 +1,16 @@
 $(document).ready(function () {
+  // simple browser TTS
+  function speakText(message) {
+    try {
+      if (!message || !window.speechSynthesis) return;
+      const utter = new SpeechSynthesisUtterance(message);
+      utter.rate = 1.0;
+      utter.pitch = 1.0;
+      speechSynthesis.cancel();
+      speechSynthesis.speak(utter);
+    } catch (e) {}
+  }
+
   // Display Speak Message
   eel.expose(DisplayMessage);
   function DisplayMessage(message) {
@@ -44,6 +56,9 @@ $(document).ready(function () {
 
       // Scroll to the bottom of the chat box
       chatBox.scrollTop = chatBox.scrollHeight;
+
+      // Speak assistant responses via browser TTS
+      speakText(message);
     }
   }
   eel.expose(hideLoader);

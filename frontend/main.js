@@ -21,8 +21,52 @@ $(document).ready(function () {
     out: { effect: "fadeOutUp", sync: true },
   });
 
-  // Hide microphone UI (text-only mode)
-  $("#MicBtn").hide();
+  // Browser SpeechRecognition (no Python mic)
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+
+  function startListening() {
+    if (!SR) {
+      console.log("SpeechRecognition not supported in this browser.");
+      return;
+    }
+    const rec = new SR();
+    rec.lang = "en-US";
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+
+    rec.onstart = function () {
+      $("#Oval").attr("hidden", true);
+      $("#SiriWave").attr("hidden", false);
+    };
+    rec.onerror = function (e) {
+      console.log("SpeechRecognition error:", e.error);
+      $("#SiriWave").attr("hidden", true);
+      $("#Oval").attr("hidden", false);
+    };
+    rec.onend = function () {
+      $("#SiriWave").attr("hidden", true);
+      $("#Oval").attr("hidden", false);
+    };
+    rec.onresult = function (event) {
+      const transcript = event.results[0][0].transcript;
+      if (transcript && transcript.trim() !== "") {
+        $("#chatbox").val("");
+        eel.senderText(transcript);
+        eel.takeAllCommands(transcript);
+      }
+    };
+
+    try {
+      rec.start();
+    } catch (e) {
+      console.log("SpeechRecognition start error:", e);
+    }
+  }
+
+  // Mic button uses browser recognition
+  $("#MicBtn").show().on("click", function () {
+    startListening();
+  });
 
   function PlayAssistant(message) {
     if (message && message.trim() !== "") {
