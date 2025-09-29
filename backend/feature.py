@@ -225,6 +225,9 @@ def chatBot(query):
             if res.status_code == 403:
                 speak("Access denied to the model. Accept model terms on Hugging Face website.")
                 return "Model access denied"
+            if res.status_code == 404:
+                speak("Model not found. Use meta-llama/Llama-3.1-8B-Instruct or set HF_MODEL correctly.")
+                return "Model not found"
             if res.status_code == 503:
                 speak("Model is loading, please wait a moment and try again.")
                 return "Model loading"
